@@ -146,7 +146,7 @@ function Welcome({ onCreate, txt, reqLabels, legacy, error }: { onCreate: (passw
   return (
     <div className="welcome">
       <img src={logo} alt="Logo" />
-      <div className="card" style={{ width: 420 }}>
+      <div className="card">
         <div className="form">
           <h2>{txt.createMaster}</h2>
           <p className="hint">{txt.securityHint} <ShieldCheck size={14} style={{ marginLeft: 6 }} /></p>
@@ -188,7 +188,7 @@ function LockScreen({ onUnlock, txt, error }: { onUnlock: (password: string) => 
   return (
     <div className="locked">
       <h2>{txt.vaultLocked}</h2>
-      <div className="card" style={{ width: 420 }}>
+      <div className="card">
         <div className="form">
           <InlineError msg={error} />
           <div className="field">

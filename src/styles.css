@@ -10,21 +10,33 @@
   --danger: #ef4444;
   --success: #22c55e;
   --border: #262a36;
+  --touch-min: 44px;
+  --breakpoint: 640px;
+  --page-pad: clamp(16px, 4vw, 24px);
+  --focus-ring: #9f67ff;
 }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
 body {
   margin: 0;
+  overflow-x: clip;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
   color: var(--text);
   background: radial-gradient(1200px 600px at 20% -10%, #1b1f29, var(--bg)), var(--bg);
 }
 
+.app,
+.welcome,
+.locked {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 .app {
   display: grid;
   grid-template-rows: auto 1fr;
-  min-height: 100%;
 }
 
 .header {
@@ -51,6 +63,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -72,7 +86,6 @@ body {
 .welcome {
   display: grid;
   place-items: center;
-  height: calc(100vh - 70px);
   text-align: center;
   gap: 20px;
 }
@@ -86,6 +99,13 @@ body {
   border-radius: 16px;
   padding: 20px;
   box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+/* Entrance/lock cards cap at min(420px, 100%) on any viewport (was inline width:420). */
+.welcome .card,
+.locked .card {
+  width: 100%;
+  max-width: 420px;
 }
 
 .grid {
@@ -129,7 +149,7 @@ body {
 .req .text { color: var(--muted); font-size: 12px; }
 
 .locked {
-  display: grid; place-items: center; height: 60vh; text-align: center; gap: 14px;
+  display: grid; place-items: center; text-align: center; gap: 14px;
 }
 .pill { display:inline-block; padding:6px 10px; border:1px dashed #334; border-radius:999px; color:var(--muted); font-size:12px; }
 
@@ -141,3 +161,16 @@ body {
 .pending { display:flex; align-items:center; gap:10px; color:var(--muted); }
 .form-error { color:var(--danger); font-size:13px; text-align:center; margin:0; }
 .legacy-notice { color:var(--danger); }
+
+/* Responsive (B3): single-column layout below the 640px breakpoint.
+   Dark theme untouched; additive only. Prevents horizontal scroll ≥320px. */
+@media (max-width: 639.98px) {
+  .row { grid-template-columns: 1fr; }
+  .grid { grid-template-columns: 1fr; }
+  .card { width: min(420px, 100%); }
+  .toolbar { flex-wrap: wrap; }
+  .header { flex-wrap: wrap; }
+  .entry { grid-template-columns: 44px 1fr auto; }
+  .badge { width: 44px; height: 44px; }
+  .content { padding: var(--page-pad); }
+}
