@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { Linkedin } from 'lucide-react'
-import { createVault, unlockVault, saveVault, isVaultBlobV2, resetSession, getSessionSalt } from './crypto'
+import { createVault, unlockVault, saveVault, isVaultBlobV2, resetSession, getSessionSalt, getSessionKey } from './crypto'
 import type { Entry, VaultBlobV2 } from './crypto'
 import { getVault, setVault, clearVault } from './storage'
 import { tr } from './lib/i18n'
@@ -172,6 +172,12 @@ export default function App() {
   // key via saveVault(existingSalt) — no 600k PBKDF2 re-derivation per save.
   useEffect(() => {
     if (sessionStatus !== 'unlocked' || sessionEntries === null) return
+    // Never persist during the transient unlock window: while UNLOCK_START is
+    // in flight no session key exists yet and entries are still empty. Saving
+    // here would re-derive from the empty-password fallback and clobber the
+    // stored vault with an empty blob (data-loss regression caught by the
+    // lock-wipe App test).
+    if (getSessionKey() === null) return
     const snapshot = JSON.stringify(sessionEntries)
     if (snapshot === savedRef.current) return
     savedRef.current = snapshot
@@ -193,7 +199,7 @@ export default function App() {
   // Auto-lock: 5 minutes idle (reset on pointerdown/keydown) + immediate lock
   // when the tab becomes hidden. Cleanup removes listeners/timer.
   useEffect(() => {
-    let idleTimer: number | undefined
+    let idleTimer: ReturnType<typeof setTimeout> | undefined
     const lock = () => {
       if (statusRef.current !== 'unlocked') return
       resetSession()
