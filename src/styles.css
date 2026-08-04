@@ -136,9 +136,16 @@ body {
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  outline: none;
   background: #0d1016;
   color: var(--text);
+}
+
+/* A11y (B4): visible keyboard focus ring replaces the old outline:none. */
+.icon-btn:focus-visible,
+.input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .hint { color: var(--muted); font-size: 12px; }

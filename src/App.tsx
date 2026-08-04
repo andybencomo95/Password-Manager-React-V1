@@ -92,15 +92,23 @@ function Header({ unlocked, onLock, onClear, txt, toggleLang }: { unlocked: bool
     onClear()
   }
 
-  // Auto-revert when the user interacts elsewhere (misclick guard).
+  // Auto-revert when the user interacts elsewhere or presses Escape (misclick
+  // guard + keyboard cancel for the two-step confirm).
   useEffect(() => {
     if (!confirmingClear) return
     const onPointerDown = (e: PointerEvent) => {
       const t = e.target as Node
       if (clearBtnRef.current && !clearBtnRef.current.contains(t)) disarmClear()
     }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') disarmClear()
+    }
     window.addEventListener('pointerdown', onPointerDown)
-    return () => window.removeEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
   }, [confirmingClear])
 
   useEffect(() => () => { if (clearTimer.current !== null) window.clearTimeout(clearTimer.current) }, [])
@@ -112,7 +120,7 @@ function Header({ unlocked, onLock, onClear, txt, toggleLang }: { unlocked: bool
       <span className="spacer" />
       <div className="toolbar">
         {unlocked ? (
-          <button className="icon-btn" onClick={onLock} title="Lock">
+          <button className="icon-btn" onClick={onLock} title={txt.lock} aria-label={txt.lock}>
             <Lock size={18} /> {txt.lock}
           </button>
         ) : null}
@@ -121,7 +129,7 @@ function Header({ unlocked, onLock, onClear, txt, toggleLang }: { unlocked: bool
             <Trash2 size={18} /> {confirmingClear ? txt.confirmClearAll : txt.clearAll}
           </button>
         ) : null}
-        <button className="icon-btn" onClick={toggleLang} title="Language">
+        <button className="icon-btn" onClick={toggleLang} title={txt.langTo} aria-label={txt.langTo}>
           <Globe size={18} /> {txt.langTo}
         </button>
       </div>
@@ -147,21 +155,21 @@ function Welcome({ onCreate, txt, reqLabels, legacy, error }: { onCreate: (passw
     <div className="welcome">
       <img src={logo} alt="Logo" />
       <div className="card">
-        <div className="form">
+        <form className="form" onSubmit={(e) => { e.preventDefault(); submit() }}>
           <h2>{txt.createMaster}</h2>
           <p className="hint">{txt.securityHint} <ShieldCheck size={14} style={{ marginLeft: 6 }} /></p>
           {legacy ? <p className="hint legacy-notice">{txt.legacyNotice}</p> : null}
           <InlineError msg={error} />
           <div className="field">
-            <label>{txt.masterLabel}</label>
+            <label htmlFor="master-password">{txt.masterLabel}</label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <input className="input" type={show ? 'text' : 'password'} value={pw} onChange={e => setPw(e.target.value)} placeholder="Min 8 characters" />
-              <button className="icon-btn" onClick={() => setShow(s => !s)}>{show ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+              <input className="input" id="master-password" type={show ? 'text' : 'password'} value={pw} onChange={e => setPw(e.target.value)} placeholder="Min 8 characters" />
+              <button type="button" className="icon-btn" onClick={() => setShow(s => !s)} aria-label={show ? txt.hidePassword : txt.revealPassword}>{show ? <EyeOff size={18} /> : <Eye size={18} />}</button>
             </div>
           </div>
           <div className="field">
-            <label>{txt.confirmLabel}</label>
-            <input className="input" type={show ? 'text' : 'password'} value={pw2} onChange={e => setPw2(e.target.value)} />
+            <label htmlFor="confirm-password">{txt.confirmLabel}</label>
+            <input className="input" id="confirm-password" type={show ? 'text' : 'password'} value={pw2} onChange={e => setPw2(e.target.value)} />
           </div>
           {(p1.length > 0 || p2.length > 0) && (
             <div className="requirements">
@@ -173,10 +181,10 @@ function Welcome({ onCreate, txt, reqLabels, legacy, error }: { onCreate: (passw
               <div className={`req ${hasSymbol ? 'ok' : ''}`}><span className="dot" /> <span className="text">{reqLabels.symbol}</span></div>
           </div>
         )}
-        <button className="icon-btn primary" disabled={!valid} onClick={submit}>
+        <button type="submit" className="icon-btn primary" disabled={!valid}>
             <Unlock size={18} /> {txt.setMaster}
           </button>
-        </div>
+        </form>
       </div>
     </div>
   )
@@ -189,19 +197,19 @@ function LockScreen({ onUnlock, txt, error }: { onUnlock: (password: string) => 
     <div className="locked">
       <h2>{txt.vaultLocked}</h2>
       <div className="card">
-        <div className="form">
+        <form className="form" onSubmit={(e) => { e.preventDefault(); onUnlock(pw) }}>
           <InlineError msg={error} />
           <div className="field">
-            <label>{txt.enterMaster}</label>
+            <label htmlFor="unlock-password">{txt.enterMaster}</label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <input className="input" type={show ? 'text' : 'password'} value={pw} onChange={e => setPw(e.target.value)} />
-              <button className="icon-btn" onClick={() => setShow(s => !s)}>{show ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+              <input className="input" id="unlock-password" type={show ? 'text' : 'password'} value={pw} onChange={e => setPw(e.target.value)} />
+              <button type="button" className="icon-btn" onClick={() => setShow(s => !s)} aria-label={show ? txt.hidePassword : txt.revealPassword}>{show ? <EyeOff size={18} /> : <Eye size={18} />}</button>
             </div>
           </div>
-          <button className="icon-btn primary" onClick={() => onUnlock(pw)}>
+          <button type="submit" className="icon-btn primary">
             <Unlock size={18} /> {txt.unlock}
           </button>
-        </div>
+        </form>
       </div>
       <p className="hint">{txt.lockHint}</p>
     </div>
@@ -232,15 +240,23 @@ function PasswordCard({ entry, onCopy, onDelete, txt }: { entry: Entry; onCopy: 
     onDelete()
   }
 
-  // Auto-revert when the user interacts elsewhere (misclick guard).
+  // Auto-revert when the user interacts elsewhere or presses Escape (misclick
+  // guard + keyboard cancel for the two-step confirm).
   useEffect(() => {
     if (!confirmingDelete) return
     const onPointerDown = (e: PointerEvent) => {
       const t = e.target as Node
       if (deleteBtnRef.current && !deleteBtnRef.current.contains(t)) disarmDelete()
     }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') disarmDelete()
+    }
     window.addEventListener('pointerdown', onPointerDown)
-    return () => window.removeEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
   }, [confirmingDelete])
 
   useEffect(() => () => {
@@ -305,7 +321,7 @@ function Manager({ entries, addEntry, deleteEntry, txt, error, saving }: { entri
   return (
     <div className="content">
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="form">
+        <form className="form" onSubmit={(e) => { e.preventDefault(); onAdd() }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Plus size={18} />
             <strong>{txt.addNew}</strong>
@@ -313,16 +329,16 @@ function Manager({ entries, addEntry, deleteEntry, txt, error, saving }: { entri
           </div>
           <InlineError msg={error} />
           <div className="row">
-            <div className="field"><label>{txt.website}</label><input className="input" value={site} onChange={e => setSite(e.target.value)} placeholder={txt.websitePh} /></div>
-            <div className="field"><label>{txt.username}</label><input className="input" value={username} onChange={e => setUsername(e.target.value)} placeholder={txt.usernamePh} /></div>
+            <div className="field"><label htmlFor="site">{txt.website}</label><input className="input" id="site" value={site} onChange={e => setSite(e.target.value)} placeholder={txt.websitePh} /></div>
+            <div className="field"><label htmlFor="username">{txt.username}</label><input className="input" id="username" value={username} onChange={e => setUsername(e.target.value)} placeholder={txt.usernamePh} /></div>
           </div>
-          <div className="field"><label>{txt.password}</label><input className="input" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div>
+          <div className="field"><label htmlFor="vault-password">{txt.password}</label><input className="input" id="vault-password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="icon-btn primary" onClick={onAdd}><Plus size={18} /> {txt.add}</button>
+            <button type="submit" className="icon-btn primary"><Plus size={18} /> {txt.add}</button>
             <button type="button" className="icon-btn" onClick={reset}><LogOut size={18} /> {txt.reset}</button>
           </div>
           <p className="hint">{txt.managerHint}</p>
-        </div>
+        </form>
       </div>
 
       <div className="grid">
@@ -421,6 +437,11 @@ export default function App() {
     ? { len: 'Al menos 8 caracteres', match: 'La contraseña y la confirmación coinciden', upper: 'Incluye una mayúscula', lower: 'Incluye una minúscula', digit: 'Incluye un número', symbol: 'Incluye un símbolo' }
     : { len: 'At least 8 characters', match: 'Password and confirmation match', upper: 'Include an uppercase letter', lower: 'Include a lowercase letter', digit: 'Include a number', symbol: 'Include a symbol' }
   const toggleLang = () => setLang(l => (l === 'en' ? 'es' : 'en'))
+
+  // A11y lang sync: keep <html lang> aligned with the active locale.
+  useEffect(() => {
+    document.documentElement.lang = lang
+  }, [lang])
 
   const [state, dispatch] = useReducer(reducer, { status: 'checking' })
   const [saving, setSaving] = useState(false)
