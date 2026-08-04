@@ -3,6 +3,8 @@ import { Lock, Unlock, Plus, Trash2, Copy, Eye, EyeOff, LogOut, ShieldCheck, Glo
 import { createVault, unlockVault, saveVault, isVaultBlobV2, resetSession, getSessionSalt } from './crypto'
 import type { Entry, VaultBlobV2 } from './crypto'
 import { getVault, setVault, clearVault } from './storage'
+import { writeClipboard } from './lib/clipboard'
+import InlineError from './components/InlineError'
 
 const logo = new URL('../logo.svg', import.meta.url).href
 
@@ -71,6 +73,38 @@ function reducer(state: AppState, action: Action): AppState {
 }
 
 function Header({ unlocked, onLock, onClear, txt, toggleLang }: { unlocked: boolean; onLock: () => void; onClear: () => void; txt: any; toggleLang: () => void }) {
+  const [confirmingClear, setConfirmingClear] = useState(false)
+  const clearTimer = useRef<number | null>(null)
+  const clearBtnRef = useRef<HTMLButtonElement | null>(null)
+
+  const disarmClear = () => {
+    if (clearTimer.current !== null) { window.clearTimeout(clearTimer.current); clearTimer.current = null }
+    setConfirmingClear(false)
+  }
+
+  const handleClear = () => {
+    if (!confirmingClear) {
+      setConfirmingClear(true)
+      clearTimer.current = window.setTimeout(disarmClear, 3000)
+      return
+    }
+    disarmClear()
+    onClear()
+  }
+
+  // Auto-revert when the user interacts elsewhere (misclick guard).
+  useEffect(() => {
+    if (!confirmingClear) return
+    const onPointerDown = (e: PointerEvent) => {
+      const t = e.target as Node
+      if (clearBtnRef.current && !clearBtnRef.current.contains(t)) disarmClear()
+    }
+    window.addEventListener('pointerdown', onPointerDown)
+    return () => window.removeEventListener('pointerdown', onPointerDown)
+  }, [confirmingClear])
+
+  useEffect(() => () => { if (clearTimer.current !== null) window.clearTimeout(clearTimer.current) }, [])
+
   return (
     <header className="header">
       <img src={logo} alt="Logo" style={{ width: 28, height: 28, borderRadius: 6 }} />
@@ -83,8 +117,8 @@ function Header({ unlocked, onLock, onClear, txt, toggleLang }: { unlocked: bool
           </button>
         ) : null}
         {unlocked ? (
-          <button className="icon-btn danger" onClick={onClear} title="Clear all">
-            <Trash2 size={18} /> {txt.clearAll}
+          <button ref={clearBtnRef} className="icon-btn danger" onClick={handleClear} title={txt.clearAll} aria-label={txt.clearAll}>
+            <Trash2 size={18} /> {confirmingClear ? txt.confirmClearAll : txt.clearAll}
           </button>
         ) : null}
         <button className="icon-btn" onClick={toggleLang} title="Language">
@@ -117,7 +151,7 @@ function Welcome({ onCreate, txt, reqLabels, legacy, error }: { onCreate: (passw
           <h2>{txt.createMaster}</h2>
           <p className="hint">{txt.securityHint} <ShieldCheck size={14} style={{ marginLeft: 6 }} /></p>
           {legacy ? <p className="hint legacy-notice">{txt.legacyNotice}</p> : null}
-          {error ? <p role="alert" className="form-error">{error}</p> : null}
+          <InlineError msg={error} />
           <div className="field">
             <label>{txt.masterLabel}</label>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -156,7 +190,7 @@ function LockScreen({ onUnlock, txt, error }: { onUnlock: (password: string) => 
       <h2>{txt.vaultLocked}</h2>
       <div className="card" style={{ width: 420 }}>
         <div className="form">
-          {error ? <p role="alert" className="form-error">{error}</p> : null}
+          <InlineError msg={error} />
           <div className="field">
             <label>{txt.enterMaster}</label>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -174,8 +208,58 @@ function LockScreen({ onUnlock, txt, error }: { onUnlock: (password: string) => 
   )
 }
 
-function PasswordCard({ entry, onCopy, onDelete }: { entry: Entry; onCopy: (text: string) => void; onDelete: () => void }) {
+function PasswordCard({ entry, onCopy, onDelete, txt }: { entry: Entry; onCopy: (text: string) => Promise<void>; onDelete: () => void; txt: any }) {
   const [revealed, setRevealed] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState<string | undefined>()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const copyTimer = useRef<number | null>(null)
+  const armTimer = useRef<number | null>(null)
+  const deleteBtnRef = useRef<HTMLButtonElement | null>(null)
+
+  const disarmDelete = () => {
+    if (armTimer.current !== null) { window.clearTimeout(armTimer.current); armTimer.current = null }
+    setConfirmingDelete(false)
+  }
+
+  const handleDelete = () => {
+    if (!confirmingDelete) {
+      setConfirmingDelete(true)
+      armTimer.current = window.setTimeout(disarmDelete, 3000)
+      return
+    }
+    disarmDelete()
+    onDelete()
+  }
+
+  // Auto-revert when the user interacts elsewhere (misclick guard).
+  useEffect(() => {
+    if (!confirmingDelete) return
+    const onPointerDown = (e: PointerEvent) => {
+      const t = e.target as Node
+      if (deleteBtnRef.current && !deleteBtnRef.current.contains(t)) disarmDelete()
+    }
+    window.addEventListener('pointerdown', onPointerDown)
+    return () => window.removeEventListener('pointerdown', onPointerDown)
+  }, [confirmingDelete])
+
+  useEffect(() => () => {
+    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current)
+    if (armTimer.current !== null) window.clearTimeout(armTimer.current)
+  }, [])
+
+  const handleCopy = async () => {
+    setCopyError(undefined)
+    try {
+      await onCopy(entry.password)
+      setCopied(true)
+      if (copyTimer.current !== null) window.clearTimeout(copyTimer.current)
+      copyTimer.current = window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopyError(txt.clipboardError)
+    }
+  }
+
   return (
     <div className="card">
       <div className="entry">
@@ -187,10 +271,14 @@ function PasswordCard({ entry, onCopy, onDelete }: { entry: Entry; onCopy: (text
           <div className="subtitle">{entry.username}</div>
         </div>
         <div className="actions">
-          <button className="icon-btn" onClick={() => setRevealed(r => !r)}>{revealed ? <EyeOff size={18} /> : <Eye size={18} />}</button>
-          <button className="icon-btn" onClick={() => onCopy(entry.password)}><Copy size={18} /></button>
-          <button className="icon-btn danger" onClick={onDelete}><Trash2 size={18} /></button>
+          <button className="icon-btn" onClick={() => setRevealed(r => !r)} aria-label={revealed ? txt.hidePassword : txt.revealPassword}>{revealed ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+          <button className="icon-btn" onClick={handleCopy} aria-label={txt.copyPassword}><Copy size={18} /></button>
+          <button ref={deleteBtnRef} className="icon-btn danger" onClick={handleDelete} aria-label={txt.deletePassword}>{confirmingDelete ? <span>{txt.confirmDelete}</span> : <Trash2 size={18} />}</button>
         </div>
+      </div>
+      <div className="meta-slot" aria-live="polite">
+        {copied ? <span className="hint copied">{txt.copied}</span> : null}
+        <InlineError msg={copyError} />
       </div>
       {revealed && (
         <div style={{ marginTop: 12 }}>
@@ -214,10 +302,6 @@ function Manager({ entries, addEntry, deleteEntry, txt, error, saving }: { entri
     reset()
   }
 
-  const copy = async (text: string) => {
-    try { await navigator.clipboard.writeText(text) } catch {}
-  }
-
   return (
     <div className="content">
       <div className="card" style={{ marginBottom: 16 }}>
@@ -227,7 +311,7 @@ function Manager({ entries, addEntry, deleteEntry, txt, error, saving }: { entri
             <strong>{txt.addNew}</strong>
             {saving ? <span className="hint" role="status" aria-live="polite">{txt.saving}</span> : null}
           </div>
-          {error ? <p role="alert" className="form-error">{error}</p> : null}
+          <InlineError msg={error} />
           <div className="row">
             <div className="field"><label>{txt.website}</label><input className="input" value={site} onChange={e => setSite(e.target.value)} placeholder={txt.websitePh} /></div>
             <div className="field"><label>{txt.username}</label><input className="input" value={username} onChange={e => setUsername(e.target.value)} placeholder={txt.usernamePh} /></div>
@@ -243,7 +327,7 @@ function Manager({ entries, addEntry, deleteEntry, txt, error, saving }: { entri
 
       <div className="grid">
         {entries.map(e => (
-          <PasswordCard key={e.id} entry={e} onCopy={copy} onDelete={() => deleteEntry(e.id)} />
+          <PasswordCard key={e.id} entry={e} onCopy={writeClipboard} onDelete={() => deleteEntry(e.id)} txt={txt} />
         ))}
       </div>
     </div>
@@ -282,7 +366,15 @@ export default function App() {
       corruptVault: 'Vault is corrupted',
       storageError: 'Unable to access local storage',
       busy: 'Unlocking…',
-      saving: 'Saving…'
+      saving: 'Saving…',
+      copied: 'Copied ✓',
+      copyPassword: 'Copy password',
+      deletePassword: 'Delete password',
+      confirmDelete: 'Confirm?',
+      confirmClearAll: 'Confirm?',
+      clipboardError: 'Unable to copy',
+      revealPassword: 'Reveal password',
+      hidePassword: 'Hide password'
     },
     es: {
       title: 'Gestor de Contraseñas',
@@ -313,7 +405,15 @@ export default function App() {
       corruptVault: 'La bóveda está dañada',
       storageError: 'No se pudo acceder al almacenamiento local',
       busy: 'Desbloqueando…',
-      saving: 'Guardando…'
+      saving: 'Guardando…',
+      copied: '¡Copiado! ✓',
+      copyPassword: 'Copiar contraseña',
+      deletePassword: 'Eliminar contraseña',
+      confirmDelete: '¿Confirmar?',
+      confirmClearAll: '¿Confirmar?',
+      clipboardError: 'No se pudo copiar',
+      revealPassword: 'Mostrar contraseña',
+      hidePassword: 'Ocultar contraseña'
     }
   } as const
   const txt = TXT[lang]

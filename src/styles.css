@@ -105,6 +105,9 @@ body {
 .entry .title { font-weight: 600; }
 .entry .subtitle { color: var(--muted); font-size: 13px; }
 .entry .actions { display: inline-flex; gap: 8px; }
+.meta-slot { display: flex; align-items: center; gap: 10px; min-height: 18px; margin-top: 8px; }
+.meta-slot .copied { color: var(--accent); font-weight: 600; }
+.meta-slot .form-error { text-align: left; margin: 0; }
 
 .form { display: grid; gap: 12px; }
 .field { display: grid; gap: 6px; }
