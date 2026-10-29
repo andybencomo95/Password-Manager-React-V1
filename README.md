@@ -1,7 +1,9 @@
 # Password Manager / Gestor de Contraseñas
 
 A modern React + Vite password manager with encrypted local storage, master-password gating, and a clean interface.
-https://passwordmanagerv1byandy.netlify.app/
+
+
+passwordmanagerv1byandy.netlify.app
 
 ## English
 
